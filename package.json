@@ -1,6 +1,6 @@
 {
   "name": "cc-tail",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Watch Claude Code JSONL output files and emit structured events as a Node.js EventEmitter",
   "type": "module",
   "main": "./src/index.js",
