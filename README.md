@@ -1,17 +1,17 @@
-# @lanmower/ccwatch
+# cc-tail
 
 Watch Claude Code JSONL output files and emit structured events as a Node.js EventEmitter.
 
 ## Install
 
 ```bash
-npm install @lanmower/ccwatch
+npm install cc-tail
 ```
 
 ## Usage
 
 ```js
-import { watch } from '@lanmower/ccwatch';
+import { watch } from 'cc-tail';
 
 const watcher = watch()
   .on('conversation_created', ({ conversation }) => {
@@ -30,7 +30,7 @@ process.on('SIGINT', () => watcher.stop());
 CommonJS:
 
 ```js
-const { watch, JsonlWatcher } = require('@lanmower/ccwatch');
+const { watch, JsonlWatcher } = require('cc-tail');
 ```
 
 ## API

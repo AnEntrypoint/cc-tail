@@ -158,7 +158,7 @@ function animateDemo(container) {
 function setupTheme() {
   const btn = document.getElementById('themeToggle');
   const icon = btn && btn.querySelector('.theme-icon');
-  const stored = localStorage.getItem('ccwatch-theme');
+  const stored = localStorage.getItem('cc-tail-theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const initial = stored || (prefersDark ? 'dark' : 'light');
   document.documentElement.setAttribute('data-theme', initial);
@@ -168,7 +168,7 @@ function setupTheme() {
     const current = document.documentElement.getAttribute('data-theme');
     const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('ccwatch-theme', next);
+    localStorage.setItem('cc-tail-theme', next);
     if (icon) icon.textContent = next === 'dark' ? '☀' : '☾';
   });
 }
