@@ -43,7 +43,7 @@
         </p>
         <div class="hero-actions">
           <div class="install-box">
-            <code class="install-cmd" id="installCmd">npm install cc-tail</code>
+            <code class="install-cmd" id="installCmd">npm install @lanmower/cc-tail</code>
             <button class="copy-btn" id="copyInstall" aria-label="Copy install command">⎘</button>
           </div>
         </div>
@@ -58,7 +58,7 @@
               <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
               <span class="card-title">ESM / TypeScript</span>
             </div>
-            <pre class="code-block"><code><span class="kw">import</span> <span class="br">{</span> watch <span class="br">}</span> <span class="kw">from</span> <span class="str">'cc-tail'</span><span class="pu">;</span>
+            <pre class="code-block"><code><span class="kw">import</span> <span class="br">{</span> watch <span class="br">}</span> <span class="kw">from</span> <span class="str">'@lanmower/cc-tail'</span><span class="pu">;</span>
 
 <span class="kw">const</span> watcher <span class="pu">=</span> watch<span class="pu">()</span>
   <span class="pu">.</span>on<span class="pu">(</span><span class="str">'conversation_created'</span><span class="pu">,</span> <span class="pu">({</span> conversation <span class="pu">})</span> <span class="pu">=&gt;</span> <span class="br">{</span>
@@ -80,7 +80,7 @@ process<span class="pu">.</span>on<span class="pu">(</span><span class="str">'SI
               <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
               <span class="card-title">CommonJS</span>
             </div>
-            <pre class="code-block"><code><span class="kw">const</span> <span class="br">{</span> watch<span class="pu">,</span> JsonlWatcher <span class="br">}</span> <span class="pu">=</span> require<span class="pu">(</span><span class="str">'cc-tail'</span><span class="pu">)</span><span class="pu">;</span>
+            <pre class="code-block"><code><span class="kw">const</span> <span class="br">{</span> watch<span class="pu">,</span> JsonlWatcher <span class="br">}</span> <span class="pu">=</span> require<span class="pu">(</span><span class="str">'@lanmower/cc-tail'</span><span class="pu">)</span><span class="pu">;</span>
 
 <span class="co">// Use default ~/.claude/projects dir</span>
 <span class="kw">const</span> watcher <span class="pu">=</span> watch<span class="pu">()</span><span class="pu">;</span>
