@@ -9,6 +9,10 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   bump-and-publish:
     runs-on: ubuntu-latest
@@ -26,25 +30,64 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Bump patch version
+      - name: Verify NPM_TOKEN
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN secret is not set" >&2
+            exit 1
+          fi
+          npm whoami
+
+      - name: Compute next version
         id: bump
         run: |
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
-          npm version patch --no-git-tag-version
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Commit version bump
-        run: |
-          git add package.json
-          git commit -m "chore: bump version to ${{ steps.bump.outputs.version }} [skip ci]"
-          git push
+          PKG_NAME=$(node -p "require('./package.json').name")
+          CUR=$(node -p "require('./package.json').version")
+          LATEST=$(npm view "$PKG_NAME" version 2>/dev/null || echo "0.0.0")
+          node -e "
+            const semver = (v) => v.split('.').map(Number);
+            const [a,b,c] = semver(process.argv[1]);
+            const [x,y,z] = semver(process.argv[2]);
+            const cmp = a-x || b-y || c-z;
+            const base = cmp > 0 ? [a,b,c] : [x,y,z];
+            base[2] += 1;
+            console.log(base.join('.'));
+          " "$CUR" "$LATEST" > .next-version
+          NEXT=$(cat .next-version)
+          npm version "$NEXT" --no-git-tag-version --allow-same-version
+          echo "version=$NEXT" >> $GITHUB_OUTPUT
+          echo "pkg=$PKG_NAME" >> $GITHUB_OUTPUT
 
       - name: Publish to npm
-        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          PKG="${{ steps.bump.outputs.pkg }}"
+          VER="${{ steps.bump.outputs.version }}"
+          if npm view "$PKG@$VER" version >/dev/null 2>&1; then
+            echo "Version $VER already on registry — skipping publish"
+          else
+            npm publish --access public
+          fi
+
+      - name: Commit and push version bump
+        run: |
+          git add package.json
+          if git diff --cached --quiet; then
+            echo "No version change to commit"
+            exit 0
+          fi
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.version }} [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && exit 0
+            echo "push attempt $i failed, retrying"
+            sleep 2
+          done
+          exit 1
 
       - uses: actions/configure-pages@v4
         with:
