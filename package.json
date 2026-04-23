@@ -10,6 +10,9 @@
       "require": "./src/index.cjs"
     }
   },
+  "bin": {
+    "cc-tail": "./src/cli.js"
+  },
   "files": [
     "src/"
   ],

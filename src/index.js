@@ -70,33 +70,36 @@ export class JsonlWatcher extends EventEmitter {
       const lines = []; let start = 0, idx;
       while ((idx = text.indexOf('\n', start)) !== -1) { lines.push(text.slice(start, idx)); start = idx + 1; }
       s.partial = text.slice(start);
-      for (const l of lines) this._line(l);
+      const fallbackSid = path.basename(fp, '.jsonl');
+      for (const l of lines) this._line(l, fallbackSid, fp);
     } catch (e) {
       if (e.code !== 'ENOENT') this.emit('error', e);
       if (s.fd !== null) { try { fs.closeSync(s.fd); } catch (_) {} s.fd = null; }
     }
   }
 
-  _line(line) {
+  _line(line, fallbackSid, fp) {
     line = line.trim();
     if (!line) return;
     let e;
     try { e = JSON.parse(line); } catch (_) { return; }
-    if (!e || !e.sessionId) return;
-    const sid = e.sessionId;
-    const conv = this._conv(sid, e);
+    if (!e) return;
+    const sid = e.sessionId || fallbackSid;
+    if (!sid) return;
+    const conv = this._conv(sid, e, fp);
     if (!conv) return;
     this._route(conv, sid, e);
   }
 
-  _conv(sid, e) {
+  _conv(sid, e, fp) {
     if (this._convs.has(sid)) return this._convs.get(sid);
     if (e.type === 'queue-operation' || e.type === 'last-prompt') return null;
     if (e.type === 'user' && e.isMeta) return null;
-    const cwd = e.cwd || process.cwd();
+    const projectDir = fp ? path.basename(path.dirname(fp)) : '';
+    const cwd = e.cwd || (projectDir ? projectDir.replace(/^C--/, 'C:/').replace(/-/g, '/') : process.cwd());
     const branch = e.gitBranch || '';
     const base = path.basename(cwd);
-    const conv = { id: sid, title: branch ? `${branch} @ ${base}` : base, cwd };
+    const conv = { id: sid, title: branch ? `${branch} @ ${base}` : base, cwd, file: fp || null };
     this._convs.set(sid, conv);
     this.emit('conversation_created', { conversation: conv, timestamp: Date.now() });
     return conv;
@@ -152,8 +155,15 @@ export class JsonlWatcher extends EventEmitter {
     if (e.type === 'user' && e.message?.content) {
       this._startStreaming(conv, sid);
       const content = e.message.content;
-      const blocks = Array.isArray(content) ? content : [];
-      for (const b of blocks) if (b.type === 'tool_result') this._push(conv, sid, b, 'tool_result');
+      if (typeof content === 'string') {
+        if (content.trim()) this._push(conv, sid, { type: 'text', text: content }, 'user');
+      } else if (Array.isArray(content)) {
+        for (const b of content) {
+          if (!b || !b.type) continue;
+          if (b.type === 'tool_result') this._push(conv, sid, b, 'tool_result');
+          else this._push(conv, sid, b, 'user');
+        }
+      }
       return;
     }
 
@@ -166,4 +176,49 @@ export class JsonlWatcher extends EventEmitter {
 
 export function watch(projectsDir) {
   return new JsonlWatcher(projectsDir).start();
+}
+
+export class JsonlReplayer extends JsonlWatcher {
+  constructor(projectsDir = DEFAULT_DIR) { super(projectsDir); }
+
+  replay({ since = 0, files: fileFilter = null } = {}) {
+    const all = [];
+    const collect = (dir, depth) => {
+      if (depth > 5) return;
+      try {
+        for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+          const fp = path.join(dir, d.name);
+          if (d.isFile() && d.name.endsWith('.jsonl')) all.push(fp);
+          else if (d.isDirectory()) collect(fp, depth + 1);
+        }
+      } catch {}
+    };
+    if (fs.existsSync(this._dir)) collect(this._dir, 0);
+    const chosen = fileFilter ? all.filter(fileFilter) : all;
+    let emitted = 0;
+    for (const fp of chosen) {
+      const fallbackSid = path.basename(fp, '.jsonl');
+      let data;
+      try { data = fs.readFileSync(fp, 'utf8'); } catch { continue; }
+      for (const line of data.split('\n')) {
+        if (!line.trim()) continue;
+        let e; try { e = JSON.parse(line); } catch { continue; }
+        if (!e) continue;
+        const t = e.timestamp ? Date.parse(e.timestamp) : 0;
+        if (since && t && t < since) continue;
+        const sid = e.sessionId || fallbackSid;
+        if (!sid) continue;
+        const conv = this._conv(sid, e, fp);
+        if (!conv) continue;
+        this._route(conv, sid, e);
+        emitted++;
+      }
+    }
+    this.emit('replay_complete', { files: chosen.length, events: emitted, timestamp: Date.now() });
+    return { files: chosen.length, events: emitted };
+  }
+}
+
+export function replay(projectsDir, opts) {
+  return new JsonlReplayer(projectsDir);
 }
