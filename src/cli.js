@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { JsonlReplayer } from './index.js';
+import { JsonlReplayer, rollup } from './index.js';
 import path from 'path';
 
 function parseArgs(argv) {
-  const opts = { since: null, grep: null, cwd: null, role: null, type: null, limit: 0, json: false, tail: false };
+  const opts = { since: null, grep: null, cwd: null, role: null, type: null, limit: 0, json: false, tail: false, rollup: null, format: 'ndjson' };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -16,6 +16,8 @@ function parseArgs(argv) {
     else if (a === '--limit') opts.limit = parseInt(next(), 10) || 0;
     else if (a === '--json') opts.json = true;
     else if (a === '--tail' || a === '-f') opts.tail = true;
+    else if (a === '--rollup') opts.rollup = next();
+    else if (a === '--format') opts.format = next();
     else if (a === '-h' || a === '--help') { printHelp(); process.exit(0); }
     else rest.push(a);
   }
@@ -28,6 +30,8 @@ function printHelp() {
 Usage:
   cc-tail [--since 12d] [--grep pattern] [--cwd path] [--role user|assistant|tool_result]
           [--type text|tool_use|tool_result] [--limit N] [--json] [-f]
+  cc-tail --rollup out.ndjson [--since 7d]
+  cc-tail --rollup out.sqlite --format sqlite [--since 7d]      # requires better-sqlite3
 
 Examples:
   cc-tail --since 24h --grep "rs-exec" --limit 50
@@ -67,6 +71,12 @@ function out(ev) {
     const repo = path.basename(conv.cwd || '');
     process.stdout.write(`[${t}] [${repo}] ${ev.role}/${ev.block?.type || '?'}: ${text.replace(/\s+/g, ' ').slice(0, 200)}\n`);
   }
+}
+
+if (opts.rollup) {
+  const stats = await rollup({ since, out: opts.rollup, format: opts.format });
+  process.stderr.write(`# rolled up ${stats.rows} events from ${stats.events} routed (${stats.files} files) → ${stats.format}: ${stats.out}\n`);
+  process.exit(0);
 }
 
 const r = new JsonlReplayer();

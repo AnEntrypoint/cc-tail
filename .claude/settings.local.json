@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -rf C:/dev/gm/.claude/hooks C:/dev/gm/.npmignore C:/dev/rs-plugkit/.claude)",
+      "Bash(rmdir C:/dev/gm/.claude)"
+    ]
+  }
+}

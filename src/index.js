@@ -95,11 +95,15 @@ export class JsonlWatcher extends EventEmitter {
     if (this._convs.has(sid)) return this._convs.get(sid);
     if (e.type === 'queue-operation' || e.type === 'last-prompt') return null;
     if (e.type === 'user' && e.isMeta) return null;
-    const projectDir = fp ? path.basename(path.dirname(fp)) : '';
+    const dir = fp ? path.dirname(fp) : '';
+    const isSubagent = /[\\/]subagents$/.test(dir);
+    const projectDir = fp ? path.basename(isSubagent ? path.dirname(path.dirname(dir)) : path.dirname(fp)) : '';
+    const parentSid = isSubagent ? path.basename(path.dirname(dir)) : null;
     const cwd = e.cwd || (projectDir ? projectDir.replace(/^C--/, 'C:/').replace(/-/g, '/') : process.cwd());
     const branch = e.gitBranch || '';
     const base = path.basename(cwd);
-    const conv = { id: sid, title: branch ? `${branch} @ ${base}` : base, cwd, file: fp || null };
+    const title = isSubagent ? `[agent] ${base}` : (branch ? `${branch} @ ${base}` : base);
+    const conv = { id: sid, title, cwd, file: fp || null, parentSid, isSubagent };
     this._convs.set(sid, conv);
     this.emit('conversation_created', { conversation: conv, timestamp: Date.now() });
     return conv;
@@ -221,4 +225,75 @@ export class JsonlReplayer extends JsonlWatcher {
 
 export function replay(projectsDir, opts) {
   return new JsonlReplayer(projectsDir);
+}
+
+export async function rollup({ projectsDir, since = 0, out, format = 'ndjson' } = {}) {
+  if (!out) throw new Error('rollup: out path required');
+  const r = new JsonlReplayer(projectsDir);
+  if (format === 'sqlite') return rollupSqlite(r, { since, out });
+  return rollupNdjson(r, { since, out });
+}
+
+function rollupNdjson(r, { since, out }) {
+  const stream = fs.createWriteStream(out);
+  let rows = 0;
+  r.on('streaming_progress', ev => {
+    const b = ev.block || {};
+    const text = b.text || (typeof b.content === 'string' ? b.content : '');
+    stream.write(JSON.stringify({
+      ts: ev.timestamp,
+      sid: ev.conversationId,
+      parent: ev.conversation?.parentSid || null,
+      cwd: ev.conversation?.cwd || '',
+      role: ev.role,
+      type: b.type || null,
+      text: text.slice(0, 4000),
+      tool: b.name || null,
+    }) + '\n');
+    rows++;
+  });
+  const stats = r.replay({ since });
+  stream.end();
+  return { ...stats, rows, format: 'ndjson', out };
+}
+
+async function rollupSqlite(r, { since, out }) {
+  let Database;
+  try { Database = (await import('better-sqlite3')).default; } catch {
+    throw new Error('rollup: format=sqlite requires better-sqlite3 (npm i better-sqlite3)');
+  }
+  const db = new Database(out);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS events (
+      ts INTEGER, sid TEXT, parent TEXT, cwd TEXT,
+      role TEXT, type TEXT, tool TEXT, text TEXT
+    );
+    CREATE INDEX IF NOT EXISTS events_sid ON events(sid);
+    CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
+    CREATE INDEX IF NOT EXISTS events_parent ON events(parent);
+  `);
+  const insert = db.prepare('INSERT INTO events (ts, sid, parent, cwd, role, type, tool, text) VALUES (?,?,?,?,?,?,?,?)');
+  let rows = 0;
+  const tx = db.transaction(events => { for (const e of events) insert.run(e.ts, e.sid, e.parent, e.cwd, e.role, e.type, e.tool, e.text); });
+  let batch = [];
+  r.on('streaming_progress', ev => {
+    const b = ev.block || {};
+    const text = b.text || (typeof b.content === 'string' ? b.content : '');
+    batch.push({
+      ts: ev.timestamp || 0,
+      sid: ev.conversationId || '',
+      parent: ev.conversation?.parentSid || null,
+      cwd: ev.conversation?.cwd || '',
+      role: ev.role || '',
+      type: b.type || null,
+      tool: b.name || null,
+      text: (text || '').slice(0, 4000),
+    });
+    rows++;
+    if (batch.length >= 500) { tx(batch); batch = []; }
+  });
+  const stats = r.replay({ since });
+  if (batch.length) tx(batch);
+  db.close();
+  return { ...stats, rows, format: 'sqlite', out };
 }
