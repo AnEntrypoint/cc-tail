@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Rename package + CLI + repo from `@lanmower/cc-tail` to `ccpeek`. Bare `cc-tail` on npm blocked by similarity to `cctail`; went to creative unscoped name instead.
-- Fix cwd reconstruction for project dirs containing dashes (rs-exec, ccpeek, gm-cc, etc). Previous `replace(/-/g, '/')` corrupted `C--dev-rs-exec` into `C:/dev/rs/exec`. Now falls back to the encoded project-dir basename when jsonl has no `cwd` field.
+- Rename package + CLI + repo from `@lanmower/cc-tail` to `ccsniff`. Bare `cc-tail` on npm blocked by similarity to `cctail`; went to creative unscoped name instead.
+- Fix cwd reconstruction for project dirs containing dashes (rs-exec, ccsniff, gm-cc, etc). Previous `replace(/-/g, '/')` corrupted `C--dev-rs-exec` into `C:/dev/rs/exec`. Now falls back to the encoded project-dir basename when jsonl has no `cwd` field.
 
 ## 1.0.0 — 2026-04-11
 

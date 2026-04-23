@@ -1,5 +1,5 @@
 {
-  "name": "ccpeek",
+  "name": "ccsniff",
   "version": "1.0.10",
   "description": "Watch Claude Code JSONL output files and emit structured events as a Node.js EventEmitter",
   "type": "module",
@@ -11,7 +11,7 @@
     }
   },
   "bin": {
-    "ccpeek": "./src/cli.js"
+    "ccsniff": "./src/cli.js"
   },
   "files": [
     "src/"
@@ -29,9 +29,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AnEntrypoint/ccpeek.git"
+    "url": "git+https://github.com/AnEntrypoint/ccsniff.git"
   },
-  "homepage": "https://anentrypoint.github.io/ccpeek",
+  "homepage": "https://anentrypoint.github.io/ccsniff",
   "engines": {
     "node": ">=18"
   }

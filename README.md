@@ -1,17 +1,17 @@
-# ccpeek
+# ccsniff
 
 Watch Claude Code JSONL output files and emit structured events as a Node.js EventEmitter.
 
 ## Install
 
 ```bash
-npm install ccpeek
+npm install ccsniff
 ```
 
 ## Usage
 
 ```js
-import { watch } from 'ccpeek';
+import { watch } from 'ccsniff';
 
 const watcher = watch()
   .on('conversation_created', ({ conversation }) => {
@@ -30,16 +30,16 @@ process.on('SIGINT', () => watcher.stop());
 CommonJS:
 
 ```js
-const { watch, JsonlWatcher } = require('ccpeek');
+const { watch, JsonlWatcher } = require('ccsniff');
 ```
 
 ## CLI
 
 ```bash
-npx ccpeek --since 24h --grep "rs-exec" --limit 50
-npx ccpeek --since 7d --role user --json
-npx ccpeek -f                     # tail new events live
-npx ccpeek --rollup out.ndjson --since 7d
+npx ccsniff --since 24h --grep "rs-exec" --limit 50
+npx ccsniff --since 7d --role user --json
+npx ccsniff -f                     # tail new events live
+npx ccsniff --rollup out.ndjson --since 7d
 ```
 
 ## API
