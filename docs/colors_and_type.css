@@ -414,8 +414,13 @@ code, .t-code {
   --panel-text:    #1f2328;
   --panel-text-2:  #59636e;
   --panel-text-3:  #8b949e;
-  --panel-accent:  var(--green);
-  --panel-accent-2:var(--green-deep);
+  --panel-accent:    var(--green);
+  --panel-accent-2:  var(--green-deep);
+  /* Contrast pair — text to use ON --panel-accent. Light theme:
+     deep green bg → white text. Dark theme: light-mint bg → ink text.
+     NEVER hardcode #fff on accent backgrounds — mint is too light for
+     white text (a prior bug made "invisible light grey on lime"). */
+  --panel-accent-fg: #ffffff;
   --panel-shadow:  0 1px 2px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.04);
   --panel-shadow-top: none;
 }
@@ -431,8 +436,9 @@ code, .t-code {
     --panel-text:    #e4e6eb;
     --panel-text-2:  #9aa3b2;
     --panel-text-3:  #6d7685;
-    --panel-accent:  var(--green-2);
-    --panel-accent-2:var(--green-2);
+    --panel-accent:    var(--green-2);
+    --panel-accent-2:  var(--green-2);
+    --panel-accent-fg: var(--ink);
     --panel-shadow:  0 1px 2px rgba(0,0,0,0.3), 0 1px 6px rgba(0,0,0,0.25);
     --panel-shadow-top: none;
   }
@@ -448,8 +454,9 @@ code, .t-code {
   --panel-text:    #e4e6eb;
   --panel-text-2:  #9aa3b2;
   --panel-text-3:  #6d7685;
-  --panel-accent:  var(--green-2);
-  --panel-accent-2:var(--green-2);
+  --panel-accent:    var(--green-2);
+  --panel-accent-2:  var(--green-2);
+  --panel-accent-fg: var(--ink);
   --panel-shadow:  0 1px 2px rgba(0,0,0,0.3), 0 1px 6px rgba(0,0,0,0.25);
   --panel-shadow-top: 0 1px 0 rgba(255,255,255,0.04);
 }
@@ -464,8 +471,20 @@ code, .t-code {
   --panel-text:    #1f2328;
   --panel-text-2:  #59636e;
   --panel-text-3:  #8b949e;
-  --panel-accent:  var(--green);
-  --panel-accent-2:var(--green-deep);
+  --panel-accent:    var(--green);
+  --panel-accent-2:  var(--green-deep);
+  --panel-accent-fg: #ffffff;
+}
+
+/* Contrast safety on any acid/lime/mint surface — text must be ink,
+   never light grey / white. Covers the --acid token and any hue that
+   pairs a near-white fg against a near-white accent. */
+.on-acid, .on-lime, [data-accent="acid"], [data-accent="lime"] {
+  background: var(--acid);
+  color: var(--ink);
+}
+.on-acid *, .on-lime *, [data-accent="acid"] *, [data-accent="lime"] * {
+  color: inherit;
 }
 
 /* Universal reset — no borders, no outlines except :focus-visible */
