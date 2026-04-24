@@ -86,7 +86,9 @@ if (opts.gmAudit) {
     if (!sessions.has(sid)) sessions.set(sid, { cwd: conv.cwd, turns: [] });
     const s = sessions.get(sid);
     if (ev.role === 'user' && ev.block?.type === 'text') {
-      s.turns.push({ isMeta: ev.block.isMeta || false, firstTool: null, text: (ev.block.text || '').slice(0, 80) });
+      const t = ev.block.text || '';
+      const isSystem = ev.block.isMeta || /^<(task-notification|command-name|local-command|system-reminder)\b/.test(t.trimStart()) || t === '[Request interrupted by user]';
+      s.turns.push({ isMeta: isSystem, firstTool: null, text: t.slice(0, 80) });
     } else if (ev.role === 'assistant' && ev.block?.type === 'tool_use' && s.turns.length) {
       const last = s.turns[s.turns.length - 1];
       if (last.firstTool === null) last.firstTool = ev.block.name || '';
