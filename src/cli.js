@@ -3,7 +3,7 @@ import { JsonlReplayer, rollup } from './index.js';
 import path from 'path';
 
 function parseArgs(argv) {
-  const opts = { since: null, grep: null, cwd: null, role: null, type: null, limit: 0, json: false, tail: false, rollup: null, format: 'ndjson' };
+  const opts = { since: null, grep: null, cwd: null, role: null, type: null, limit: 0, json: false, tail: false, rollup: null, format: 'ndjson', gmAudit: false };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -18,6 +18,7 @@ function parseArgs(argv) {
     else if (a === '--tail' || a === '-f') opts.tail = true;
     else if (a === '--rollup') opts.rollup = next();
     else if (a === '--format') opts.format = next();
+    else if (a === '--gm-audit') opts.gmAudit = true;
     else if (a === '-h' || a === '--help') { printHelp(); process.exit(0); }
     else rest.push(a);
   }
@@ -32,6 +33,7 @@ Usage:
           [--type text|tool_use|tool_result] [--limit N] [--json] [-f]
   ccsniff --rollup out.ndjson [--since 7d]
   ccsniff --rollup out.sqlite --format sqlite [--since 7d]      # requires better-sqlite3
+  ccsniff --gm-audit [--since 24h] [--cwd repo]
 
 Examples:
   ccsniff --since 24h --grep "rs-exec" --limit 50
@@ -71,6 +73,42 @@ function out(ev) {
     const repo = path.basename(conv.cwd || '');
     process.stdout.write(`[${t}] [${repo}] ${ev.role}/${ev.block?.type || '?'}: ${text.replace(/\s+/g, ' ').slice(0, 200)}\n`);
   }
+}
+
+if (opts.gmAudit) {
+  const sessions = new Map();
+  const r2 = new JsonlReplayer();
+  r2.on('streaming_progress', ev => {
+    const conv = ev.conversation;
+    if (cwdRe && !cwdRe.test(conv.cwd || '')) return;
+    if (ev.role !== 'user' && ev.role !== 'assistant') return;
+    const sid = conv.id;
+    if (!sessions.has(sid)) sessions.set(sid, { cwd: conv.cwd, turns: [] });
+    const s = sessions.get(sid);
+    if (ev.role === 'user' && ev.block?.type === 'text') {
+      s.turns.push({ isMeta: ev.block.isMeta || false, firstTool: null, text: (ev.block.text || '').slice(0, 80) });
+    } else if (ev.role === 'assistant' && ev.block?.type === 'tool_use' && s.turns.length) {
+      const last = s.turns[s.turns.length - 1];
+      if (last.firstTool === null) last.firstTool = ev.block.name || '';
+    }
+  });
+  r2.replay({ since });
+  let totalReal = 0, totalCompliant = 0;
+  for (const [sid, s] of sessions) {
+    const real = s.turns.filter(t => !t.isMeta);
+    const compliant = real.filter(t => t.firstTool === 'Skill' || t.firstTool === 'mcp__gm__Skill');
+    totalReal += real.length;
+    totalCompliant += compliant.length;
+    const pct = real.length ? Math.round(100 * compliant.length / real.length) : 0;
+    const violations = real.filter(t => t.firstTool !== 'Skill' && t.firstTool !== 'mcp__gm__Skill');
+    process.stdout.write(`[${pct}%] ${path.basename(s.cwd || sid)} (${compliant.length}/${real.length}) sid=${sid.slice(0, 8)}\n`);
+    for (const v of violations.slice(0, 3)) {
+      process.stdout.write(`  MISS first=${v.firstTool || 'none'} msg="${v.text.replace(/\s+/g, ' ')}"\n`);
+    }
+  }
+  const total = totalReal ? Math.round(100 * totalCompliant / totalReal) : 0;
+  process.stderr.write(`# gm-audit: ${totalCompliant}/${totalReal} compliant (${total}%) across ${sessions.size} sessions\n`);
+  process.exit(0);
 }
 
 if (opts.rollup) {

@@ -128,7 +128,14 @@ export class JsonlWatcher extends EventEmitter {
   }
 
   _route(conv, sid, e) {
-    if (e.type === 'queue-operation' || e.type === 'last-prompt' || (e.type === 'user' && e.isMeta)) return;
+    if (e.type === 'queue-operation' || e.type === 'last-prompt') return;
+    if (e.type === 'user' && e.isMeta) {
+      this._startStreaming(conv, sid);
+      const content = e.message?.content;
+      const text = typeof content === 'string' ? content : (Array.isArray(content) ? content.filter(b => b?.type === 'text').map(b => b.text).join('') : '');
+      if (text.trim()) this._push(conv, sid, { type: 'text', text, isMeta: true }, 'user');
+      return;
+    }
 
     if (e.isApiErrorMessage && e.error === 'rate_limit') {
       this.emit('streaming_error', { conversationId: conv.id, error: 'Rate limit hit', recoverable: true, timestamp: Date.now() });
@@ -249,6 +256,7 @@ function rollupNdjson(r, { since, out }) {
       type: b.type || null,
       text: text.slice(0, 4000),
       tool: b.name || null,
+      isMeta: b.isMeta || false,
     }) + '\n');
     rows++;
   });
@@ -266,15 +274,15 @@ async function rollupSqlite(r, { since, out }) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS events (
       ts INTEGER, sid TEXT, parent TEXT, cwd TEXT,
-      role TEXT, type TEXT, tool TEXT, text TEXT
+      role TEXT, type TEXT, tool TEXT, text TEXT, is_meta INTEGER DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS events_sid ON events(sid);
     CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
     CREATE INDEX IF NOT EXISTS events_parent ON events(parent);
   `);
-  const insert = db.prepare('INSERT INTO events (ts, sid, parent, cwd, role, type, tool, text) VALUES (?,?,?,?,?,?,?,?)');
+  const insert = db.prepare('INSERT INTO events (ts, sid, parent, cwd, role, type, tool, text, is_meta) VALUES (?,?,?,?,?,?,?,?,?)');
   let rows = 0;
-  const tx = db.transaction(events => { for (const e of events) insert.run(e.ts, e.sid, e.parent, e.cwd, e.role, e.type, e.tool, e.text); });
+  const tx = db.transaction(events => { for (const e of events) insert.run(e.ts, e.sid, e.parent, e.cwd, e.role, e.type, e.tool, e.text, e.isMeta ? 1 : 0); });
   let batch = [];
   r.on('streaming_progress', ev => {
     const b = ev.block || {};
@@ -288,6 +296,7 @@ async function rollupSqlite(r, { since, out }) {
       type: b.type || null,
       tool: b.name || null,
       text: (text || '').slice(0, 4000),
+      isMeta: b.isMeta || false,
     });
     rows++;
     if (batch.length >= 500) { tx(batch); batch = []; }
