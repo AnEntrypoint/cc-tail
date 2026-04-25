@@ -81,13 +81,15 @@ if (opts.gmAudit) {
   r2.on('streaming_progress', ev => {
     const conv = ev.conversation;
     if (cwdRe && !cwdRe.test(conv.cwd || '')) return;
+    if (conv.isSubagent) return; // memorize/subagents don't need gm invocation
     if (ev.role !== 'user' && ev.role !== 'assistant') return;
     const sid = conv.id;
     if (!sessions.has(sid)) sessions.set(sid, { cwd: conv.cwd, turns: [] });
     const s = sessions.get(sid);
     if (ev.role === 'user' && ev.block?.type === 'text') {
       const t = ev.block.text || '';
-      const isSystem = ev.block.isMeta || /^<(task-notification|command-name|local-command|system-reminder)\b/.test(t.trimStart()) || t === '[Request interrupted by user]';
+      const isContinuation = /^This session is being continued from a previous conversation/.test(t.trimStart());
+      const isSystem = ev.block.isMeta || isContinuation || /^<(task-notification|command-name|local-command|system-reminder)\b/.test(t.trimStart()) || t === '[Request interrupted by user]' || t === '[Request interrupted by user for tool use]';
       s.turns.push({ isMeta: isSystem, firstTool: null, text: t.slice(0, 80) });
     } else if (ev.role === 'assistant' && ev.block?.type === 'tool_use' && s.turns.length) {
       const last = s.turns[s.turns.length - 1];
