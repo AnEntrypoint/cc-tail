@@ -97,21 +97,28 @@ if (opts.gmAudit) {
     }
   });
   r2.replay({ since });
-  let totalReal = 0, totalCompliant = 0;
+  // terse: single-word / slash-command / short follow-up — less critical to enforce gm
+  const isTerse = t => t.text.trim().length <= 5 || /^\/\w/.test(t.text.trim());
+  let totalReal = 0, totalCompliant = 0, totalTerse = 0;
   for (const [sid, s] of sessions) {
     const real = s.turns.filter(t => !t.isMeta);
     const compliant = real.filter(t => t.firstTool === 'Skill' || t.firstTool === 'mcp__gm__Skill');
+    const terse = real.filter(t => isTerse(t) && t.firstTool !== 'Skill' && t.firstTool !== 'mcp__gm__Skill');
     totalReal += real.length;
     totalCompliant += compliant.length;
+    totalTerse += terse.length;
     const pct = real.length ? Math.round(100 * compliant.length / real.length) : 0;
-    const violations = real.filter(t => t.firstTool !== 'Skill' && t.firstTool !== 'mcp__gm__Skill');
-    process.stdout.write(`[${pct}%] ${path.basename(s.cwd || sid)} (${compliant.length}/${real.length}) sid=${sid.slice(0, 8)}\n`);
+    const violations = real.filter(t => t.firstTool !== 'Skill' && t.firstTool !== 'mcp__gm__Skill' && !isTerse(t));
+    if (real.length === 0) continue;
+    process.stdout.write(`[${pct}%] ${path.basename(s.cwd || sid)} (${compliant.length}/${real.length}, terse-skip:${terse.length}) sid=${sid.slice(0, 8)}\n`);
     for (const v of violations.slice(0, 3)) {
       process.stdout.write(`  MISS first=${v.firstTool || 'none'} msg="${v.text.replace(/\s+/g, ' ')}"\n`);
     }
   }
   const total = totalReal ? Math.round(100 * totalCompliant / totalReal) : 0;
-  process.stderr.write(`# gm-audit: ${totalCompliant}/${totalReal} compliant (${total}%) across ${sessions.size} sessions\n`);
+  const adjCompliant = totalCompliant + totalTerse;
+  const adjTotal = totalReal ? Math.round(100 * adjCompliant / totalReal) : 0;
+  process.stderr.write(`# gm-audit: ${totalCompliant}/${totalReal} compliant (${total}%) | adj (terse-skip): ${adjCompliant}/${totalReal} (${adjTotal}%) | ${sessions.size} sessions\n`);
   process.exit(0);
 }
 
